@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# you can change this to set the target to constant value
+export target="$2"
+if [ -z "$2" ]; then
+  echo "Warning: Empty target. Please specify a target to run patcher."
+  target="target"
+fi
+export branch="$3"
+if [ -z "$3" ]; then
+  echo "Warning: Empty branch. Please specify a branch to run patcher at."
+  branch="main"
+fi
+
+# resolve shell-specifics
+case "$(echo "$SHELL" | sed -E 's|/usr(/local)?||g')" in
+    "/bin/zsh")
+        RCPATH="$HOME/.zshrc"
+        SOURCE="${BASH_SOURCE[0]:-${(%):-%N}}"
+    ;;
+    *)
+        RCPATH="$HOME/.bashrc"
+        if [[ -f "$HOME/.bash_aliases" ]]; then
+            RCPATH="$HOME/.bash_aliases"
+        fi
+        SOURCE="${BASH_SOURCE[0]}"
+    ;;
+esac
+
+# get base dir regardless of execution location
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SOURCE=$([[ "$SOURCE" = /* ]] && echo "$SOURCE" || echo "$PWD/${SOURCE#./}")
+basedir=$(dirname "$SOURCE")
+case "$1" in
+  "rb" | "rbp" | "rebuild")
+  (
+    set -e
+    cd "$basedir"
+    scripts/rebuildPatches.sh "$target" "$branch" || exit 1
+  )
+  ;;
+  "p" | "patch")
+  (
+    set -e
+    cd "$basedir"
+    scripts/init.sh "$target" "$branch" || exit 1
+    scripts/applyPatches.sh "$target" "$branch" || exit 1
+  )
+  ;;
+  *)
+    echo " Commands:"
+    echo "  * rb, rebuild            | Rebuild patches."
+    echo "  * p, patch               | Apply all patches to the project without building it."
+  ;;
+esac
